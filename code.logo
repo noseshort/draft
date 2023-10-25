@@ -1,0 +1,644 @@
+extensions [ rnd ]
+
+turtles-own
+[
+  infected?             ;; if true, the turtle is infectious
+  immuned?              ;; if true, the turtle can't be infected
+  symptomatic?          ;;  if true, the turtle is infected and symptomatic
+  long-covid?           ;;  if true, the turtle has long-covid
+  supper-immune?        ;;  if true, the turtle is supper immune and not get infected at all
+  virus-check-timer     ;; number of tickes since this turtle's last virus-check
+  productivity          ;; percentage of productivity of this turtle
+  symptomatic-start
+  symptomatic-duration
+  transfer-active-duration
+  number-of-infection
+  age-of
+  gender-of
+  covid-age-prob
+  us-age-prob
+  us-male-prob
+  vaccinated
+  vaccinated-time
+  health-risk-level
+  real_efficiency
+  initial-infections
+]
+
+links-own
+[relationship-type]
+
+to setup
+  clear-all
+  setup-nodes
+  setup-spatially-clustered-network
+  setup-attributs-for-nodes
+  ask n-of round ((initial-infected-agents% / 100) * Number-of-agents) turtles with [ vaccinated = 0 and not supper-immune? ]
+  [
+    become-infected-nonsymptomatic
+    set virus-check-timer 1
+    set number-of-infection 1
+    set initial-infections 1
+  ]
+  ask links [ set color white ]
+  reset-ticks
+end
+
+to setup-nodes
+  set-default-shape turtles "circle"
+  create-turtles Number-of-agents
+  [
+    ; for visual reason, we don't put any nodes *too* close to the edges
+    setxy (random-xcor * 0.95) (random-ycor * 0.95)
+    become-susceptible
+    set virus-check-timer 0
+    set-covid-age-prob
+    set-us-age-prob
+    set-us-male-prob
+  ]
+  ask n-of ((Super-immune% * Number-of-agents) / 100) turtles [ become-supper-immune ]
+end
+
+to setup-attributs-for-nodes
+  let pairs (list (list 0 0.057) (list 1 0.125) (list 2 0.130) (list 3 0.137) (list 4 0.131) (list 5 0.123) (list 6 0.129) (list 7 0.101) (list 8 0.049) (list 9 0.018))
+  let probs list (list 0 (Male-population% / 100)) (list 1 (1 - (Male-population% / 100)))
+
+  ask turtles
+  [
+    ifelse Age-distribution
+    [
+      let age-state first rnd:weighted-one-of-list pairs last
+      if age-state = 0 [set age-of 0 + random 5]
+      if age-state = 1 [set age-of 5 + random 10]
+      if age-state = 2 [set age-of 15 + random 10]
+      if age-state = 3 [set age-of 25 + random 10]
+      if age-state = 4 [set age-of 35 + random 10]
+      if age-state = 5 [set age-of 45 + random 10]
+      if age-state = 6 [set age-of 55 + random 10]
+      if age-state = 7 [set age-of 65 + random 10]
+      if age-state = 8 [set age-of 75 + random 10]
+      if age-state = 9 [set age-of 85 + random 10]
+    ]
+    [ set age-of random Age-range]
+
+    set gender-of first rnd:weighted-one-of-list probs last
+    set health-risk-level 1
+  ]
+  ifelse Gender
+  [
+    ask n-of Risk-level-2 turtles with [ gender-of = 1 and age-of > 15]
+    [ set health-risk-level 2 ]
+  ]
+  [
+    ask n-of Risk-level-2 turtles
+    [ set health-risk-level 2 ]
+  ]
+  ask n-of Risk-level-3 turtles with [ health-risk-level = 1 ]
+  [ set health-risk-level 3 ]
+  ask n-of Risk-level-4 turtles with [ health-risk-level = 1 ]
+  [ set health-risk-level 4 ]
+end
+
+to vaccination-status
+ ifelse Vaccine-priority
+    [
+      ask turtles with [ age-of >= 65 ]
+      [
+        ifelse (count turtles with [vaccinated = 1] / Number-of-agents) * 100 < Vaccination%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+          set color white
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+
+      ask turtles with [ health-risk-level = 4 and age-of < 65]
+      [
+        ifelse (count turtles with [vaccinated = 1] / Number-of-agents) * 100 < Vaccination%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+          set color white
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+      ask turtles with [ health-risk-level = 3  and age-of < 65 ]
+      [
+        ifelse (count turtles with [vaccinated = 1] / Number-of-agents) * 100 < Vaccination%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+          set color white
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+      ask turtles with [ health-risk-level = 2  and age-of < 65 ]
+      [
+        ifelse (count turtles with [vaccinated = 1] / Number-of-agents) * 100 < Vaccination%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+          set color white
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+      ask turtles with [ health-risk-level = 1 ]
+      [
+        ifelse (count turtles with [vaccinated = 1] / Number-of-agents) * 100 < Vaccination%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+          set color white
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+    ]
+    [
+      ask turtles
+      [
+        ifelse (count turtles with [vaccinated = 1] / Number-of-agents) * 100 < Vaccination%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+          set color white
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+    ]
+end
+
+to setup-spatially-clustered-network
+  let num-links (Average-agent-degree * Number-of-agents) / 2
+  while [count links < num-links ]
+  [
+    ask one-of turtles
+    [
+      let choice (min-one-of (other turtles with [not link-neighbor? myself])
+        [distance myself])
+      if choice != nobody [ create-link-with choice ]
+    ]
+  ]
+  ; make the network look a little prettier
+  repeat 10
+  [
+    layout-spring turtles links 0.3 (world-width / (sqrt Number-of-agents)) 1
+  ]
+
+  ;if Long-distance-connections% > 0
+  ;[
+  ;  let rr 0
+  ;  while [rr < round ((Long-distance-connections% / 100) * Number-of-agents) ]
+  ;  [
+  ;    set rr rr + 1
+  ;    ask one-of turtles
+  ;    [
+  ;      let ave-distance mean [distance myself] of other turtles with [not link-neighbor? myself]
+  ;      create-link-with one-of turtles with [not link-neighbor? myself and distance myself > ave-distance]
+  ;    ]
+  ;  ]
+  ;]
+end
+
+to go
+  if Time-steps = "days"
+  [
+    set-temporal-links
+    if all? turtles [ not infected? and not immuned?]
+    [ stop ]
+    if Vaccination and ticks = V-start-time
+    [ vaccination-status ]
+    if Vaccination and ticks >= V-start-time
+    [ check-vaccination-time ]
+    spread-virus-days
+    do-virus-checks-infected
+    do-virus-checks-immuned
+    tick
+  ]
+  if Time-steps = "minutes"
+  [
+    set-temporal-links
+    if ticks = 60 * 8
+    [ stop ]
+    if Vaccination and ticks = 0
+    [ vaccination-status ]
+    spread-virus-minutes
+    tick
+  ]
+end
+
+to become-infected-nonsymptomatic
+  set infected? true
+  set immuned? false
+  set symptomatic? false
+  set long-covid? false
+  set supper-immune? false
+  set color red + 2
+end
+
+to become-infected-symptomatic
+  set infected? true
+  set immuned? false
+  set symptomatic? true
+  set long-covid? false
+  set supper-immune? false
+  set color red - 2
+end
+
+to become-infected-symptomatic-long
+  set infected? true
+  set immuned? false
+  set symptomatic? true
+  set long-covid? true
+  set supper-immune? false
+  set color yellow
+  set shape "triangle"
+end
+
+to become-susceptible
+  set infected? false
+  set immuned? false
+  set symptomatic? false
+  set long-covid? false
+  set supper-immune? false
+  set color blue
+  set shape "circle"
+end
+
+to become-immuned-symptomatic
+  set infected? false
+  set immuned? true
+  set symptomatic? true
+  set long-covid? false
+  set supper-immune? false
+  set color gray
+  set shape "triangle"
+end
+
+to become-immuned
+  set infected? false
+  set immuned? true
+  set symptomatic? false
+  set long-covid? false
+  set supper-immune? false
+  set color gray
+  set shape "circle"
+end
+
+to become-supper-immune
+  set infected? false
+  set immuned? false
+  set symptomatic? false
+  set long-covid? false
+  set supper-immune? true
+  set color green
+end
+
+to set-covid-age-prob
+  if age-of < 10
+    [ set covid-age-prob 2.3]
+    if age-of < 20 and age-of >= 10
+    [ set covid-age-prob 5.1 ]
+    if age-of < 30 and age-of >= 20
+    [ set covid-age-prob 15.5 ]
+    if age-of < 40 and age-of >= 30
+    [ set covid-age-prob 16.9 ]
+    if age-of < 50 and age-of >= 40
+    [ set covid-age-prob 16.4 ]
+    if age-of < 60 and age-of >= 50
+    [ set covid-age-prob 16.4 ]
+    if age-of < 70 and age-of >= 60
+    [ set covid-age-prob 11.9 ]
+    if age-of < 80 and age-of >= 70
+    [ set covid-age-prob 7.0 ]
+    if age-of >= 80
+    [ set covid-age-prob 8.5 ]
+end
+
+to set-us-age-prob
+  if age-of < 5
+    [ set us-age-prob 5.7]
+    if age-of < 15 and age-of >= 5
+    [ set us-age-prob 12.5 ]
+    if age-of < 25 and age-of >= 15
+    [ set us-age-prob 13.0 ]
+    if age-of < 35 and age-of >= 25
+    [ set us-age-prob 13.7 ]
+    if age-of < 45 and age-of >= 35
+    [ set us-age-prob 13.1 ]
+    if age-of < 55 and age-of >= 45
+    [ set us-age-prob 12.3 ]
+    if age-of < 65 and age-of >= 55
+    [ set us-age-prob 12.9 ]
+    if age-of < 75 and age-of >= 65
+    [ set us-age-prob 10.1 ]
+    if age-of < 85 and age-of >= 75
+    [ set us-age-prob 4.9 ]
+    if age-of >= 85
+    [ set us-age-prob 1.8 ]
+end
+
+to set-temporal-links
+  ask links with [relationship-type = "temporal"][die]
+  let rr 0
+  while [rr < round ((Temporal-connections% / 100) * Number-of-agents) ]
+  [
+    set rr rr + 1
+    ask one-of turtles
+    [
+      let potential-link one-of other turtles with [not link-neighbor? myself ]
+      if potential-link != self
+      [create-link-with potential-link[ set relationship-type "temporal" ]]
+    ]
+  ]
+end
+
+to set-us-male-prob
+  set us-male-prob 49
+end
+
+to link-neighbors-for-covid
+
+  ask link-neighbors with [not immuned? and not infected? and not supper-immune?]    ; also long-covid people can get covid
+      [
+        ifelse Vaccination-decay
+        [ set real_efficiency (Efficiency% - 0.11 * vaccinated-time) ]
+        [ set real_efficiency Efficiency% ]
+
+        if ticks < V-start-time or vaccinated = 0 or random 100 > real_efficiency
+        [
+          if not Gender and not Age
+          [
+            if random 100 < COVID-spread-chance%
+            [
+              become-infected-nonsymptomatic
+              set virus-check-timer 1
+              set number-of-infection number-of-infection + 1
+            ]
+          ]
+
+          if Gender and not Age
+          [
+            if gender-of = 0 and random 100 < Male-COVID-chance% * COVID-spread-chance% / us-male-prob
+            [
+              become-infected-nonsymptomatic
+              set virus-check-timer 1
+              set number-of-infection number-of-infection + 1
+            ]
+            if gender-of = 1 and random 100 < (100 - Male-COVID-chance%) * COVID-spread-chance% / (100 - us-male-prob)
+            [
+              become-infected-nonsymptomatic
+              set virus-check-timer 1
+              set number-of-infection number-of-infection + 1
+            ]
+          ]
+
+          if Age
+          [
+            if not Gender
+            [
+              if random 100 < covid-age-prob * COVID-spread-chance% / us-age-prob
+              [
+                become-infected-nonsymptomatic
+                set virus-check-timer 1
+                set number-of-infection number-of-infection + 1
+              ]
+            ]
+
+            if Gender
+            [
+              if gender-of = 0 and random 100 < (covid-age-prob * Male-COVID-chance%) * COVID-spread-chance% / (us-age-prob * us-male-prob)
+
+              [
+                become-infected-nonsymptomatic
+                set virus-check-timer 1
+                set number-of-infection number-of-infection + 1
+              ]
+              if gender-of = 1 and random 100 < (covid-age-prob * (100 - Male-COVID-chance%)) * COVID-spread-chance% / (us-age-prob * (100 - us-male-prob))
+              [
+                become-infected-nonsymptomatic
+                set virus-check-timer 1
+                set number-of-infection number-of-infection + 1
+              ]
+            ]
+          ]
+        ]
+      ]
+end
+
+to link-neighbors-for-covid-minutes
+
+  ask link-neighbors with [not infected? and not supper-immune?]    ; also long-covid people can get covid
+      [
+        if vaccinated = 0 or random 100 > Efficiency%
+        [
+          if not Gender and not Age
+          [
+            if random 100 < COVID-spread-chance%
+            [ become-infected-nonsymptomatic ]
+          ]
+
+          if Gender and not Age
+          [
+            if gender-of = 0 and random 100 < Male-COVID-chance% * COVID-spread-chance% / us-male-prob
+            [ become-infected-nonsymptomatic ]
+            if gender-of = 1 and random 100 < (100 - Male-COVID-chance%) * COVID-spread-chance% / (100 - us-male-prob)
+            [ become-infected-nonsymptomatic ]
+          ]
+
+          if Age
+          [
+            if not Gender
+            [
+              if random 100 < covid-age-prob * COVID-spread-chance% / us-age-prob
+              [ become-infected-nonsymptomatic ]
+            ]
+
+            if Gender
+            [
+              if gender-of = 0 and random 100 < (covid-age-prob * Male-COVID-chance%) * COVID-spread-chance% / (us-age-prob * us-male-prob)
+
+              [ become-infected-nonsymptomatic ]
+              if gender-of = 1 and random 100 < (covid-age-prob * (100 - Male-COVID-chance%)) * COVID-spread-chance% / (us-age-prob * (100 - us-male-prob))
+              [ become-infected-nonsymptomatic ]
+            ]
+          ]
+        ]
+      ]
+end
+
+to spread-virus-days
+  ask turtles with [ infected? and virus-check-timer < transfer-active-duration ]
+  [
+    ifelse symptomatic-start > 0 and virus-check-timer > symptomatic-start
+    [
+      if random 100 > Precaution-percentage%
+      [ link-neighbors-for-covid ]
+    ]
+    [ link-neighbors-for-covid ]
+  ]
+end
+
+to spread-virus-minutes
+  ask turtles with [ initial-infections = 1 ]
+  [
+    if random 100 > Precaution-percentage%
+    [ link-neighbors-for-covid-minutes ]
+  ]
+end
+
+to do-virus-checks-infected
+  ask turtles with [infected?]
+  [
+    ifelse virus-check-timer = 1          ; first step, assign some parameters to the agent
+    [
+      set virus-check-timer virus-check-timer + 1
+      set transfer-active-duration (1 + random Active-duration)
+
+      ifelse random 100 < Asymptomatic%
+      [ set symptomatic-start 0 ]
+      [
+        set symptomatic-start (1 + random Symptomatic-start-time)
+        while [symptomatic-start > transfer-active-duration]
+        [ set symptomatic-start (1 + random Symptomatic-start-time) ]
+      ]
+
+      ifelse symptomatic-start = 0
+      [
+        set symptomatic-duration 0
+      ]
+      [
+        set symptomatic-duration (Effect-of-reinfection * (number-of-infection + 1)) +
+        int (median (list Symptomatic-duration-mmin (random-normal Symptomatic-duration-mid
+          Symptomatic-duration-dev) Symptomatic-duration-mmax))
+      ]
+    ]
+    [ set virus-check-timer virus-check-timer + 1 ]
+
+    if virus-check-timer = symptomatic-start      ; start time of symptoms
+    [
+      ifelse long-COVID and symptomatic-duration > Long-covid-time-treshold    ; check for long covid
+        [ become-infected-symptomatic-long ]
+        [ become-infected-symptomatic ]
+    ]
+
+    if virus-check-timer = Infected-period-of-time and symptomatic-start = 0    ; agent is nonsymptomatic
+    [ become-immuned ]
+
+    if symptomatic-start > 0    ; agent is symptomatic
+    [
+      if symptomatic-start + symptomatic-duration < Infected-period-of-time
+      [
+        if virus-check-timer = symptomatic-start + symptomatic-duration
+        [ become-infected-nonsymptomatic ]
+        if virus-check-timer = Infected-period-of-time
+        [ become-immuned ]
+      ]
+      if symptomatic-start + symptomatic-duration = Infected-period-of-time
+      [
+        if virus-check-timer = Infected-period-of-time
+        [ become-immuned ]
+      ]
+      if symptomatic-start + symptomatic-duration > Infected-period-of-time
+      [
+        if virus-check-timer = Infected-period-of-time
+        [ become-immuned-symptomatic ]
+        if virus-check-timer = symptomatic-start + symptomatic-duration
+        [ become-immuned ]
+      ]
+    ]
+
+  ]
+end
+
+to do-virus-checks-immuned
+  ask turtles with [immuned?]
+  [
+    ifelse symptomatic-start = 0
+    [
+      ifelse virus-check-timer <= Infected-period-of-time + Immune-period-of-time
+      [
+        set virus-check-timer virus-check-timer + 1
+        set transfer-active-duration 0
+      ]
+      [
+        become-susceptible
+        set virus-check-timer 0
+        set symptomatic-duration 0
+        set transfer-active-duration 0
+      ]
+    ]
+    [
+      if symptomatic-start + symptomatic-duration <= Infected-period-of-time
+      [
+        ifelse virus-check-timer <= Infected-period-of-time + Immune-period-of-time
+        [
+          set virus-check-timer virus-check-timer + 1
+          set transfer-active-duration 0
+        ]
+        [
+          become-susceptible
+          set virus-check-timer 0
+          set symptomatic-duration 0
+          set transfer-active-duration 0
+        ]
+      ]
+
+      if symptomatic-start + symptomatic-duration > Infected-period-of-time
+      [
+        ifelse virus-check-timer <= symptomatic-start + symptomatic-duration + Immune-period-of-time
+        [
+          set virus-check-timer virus-check-timer + 1
+          set transfer-active-duration 0
+        ]
+        [
+          become-susceptible
+          set virus-check-timer 0
+          set symptomatic-duration 0
+          set transfer-active-duration 0
+        ]
+      ]
+    ]
+  ]
+
+end
+
+to check-vaccination-time
+  ask turtles
+  [
+    if vaccinated = 1
+    [
+      set vaccinated-time vaccinated-time + 1
+      if vaccinated-time = 6 * 30
+      [
+        ifelse random 100 < Boosted%
+        [
+          set vaccinated 1
+          set vaccinated-time 1
+        ]
+        [
+          set vaccinated 0
+          set vaccinated-time 0
+        ]
+      ]
+    ]
+  ]
+end
